@@ -5,7 +5,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import connection
 from django.db import models
-from django.utils.encoding import smart_text
+from django.utils.encoding import smart_str
 from django.utils.translation import gettext_lazy as _
 
 from tagging import settings
@@ -14,6 +14,12 @@ from tagging.utils import calculate_cloud
 from tagging.utils import get_queryset_and_model
 from tagging.utils import get_tag_list
 from tagging.utils import parse_tag_input
+
+
+try:
+    from django.core.exceptions import FullResultSet
+except ImportError:
+    pass
 
 
 qn = connection.ops.quote_name
@@ -175,13 +181,24 @@ class TagManager(models.Manager):
         Passing a value for ``min_count`` implies ``counts=True``.
         """
         compiler = queryset.query.get_compiler(using=queryset.db)
-        where, params = compiler.compile(queryset.query.where)
-        extra_joins = ' '.join(compiler.get_from_clause()[0][1:])
+        # where, params = compiler.compile(queryset.query.where)
+        # extra_joins = ' '.join(compiler.get_from_clause()[0][1:])
+        params = []
 
-        if where:
-            extra_criteria = 'AND %s' % where
-        else:
+        try:
+            where, params = compiler.compile(queryset.query.where)
+            if where:
+                 extra_criteria = 'AND %s' % where
+            else:
+                extra_criteria = ''
+
+        # if where:
+        #     extra_criteria = 'AND %s' % where
+        # else:
+        except FullResultSet:
             extra_criteria = ''
+        
+        extra_joins = ' '.join(compiler.get_from_clause()[0][1:])
         return self._get_usage(queryset.model, counts, min_count,
                                extra_joins, extra_criteria, params)
 
@@ -519,4 +536,4 @@ class TaggedItem(models.Model):
         verbose_name_plural = _('tagged items')
 
     def __str__(self):
-        return '%s [%s]' % (smart_text(self.object), smart_text(self.tag))
+        return '%s [%s]' % (smart_str(self.object), smart_str(self.tag))
